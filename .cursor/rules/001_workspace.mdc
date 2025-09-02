@@ -1,0 +1,79 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# 🚀 프로젝트 컨텍스트: AI 기반 언어 학습 플랫폼 "English Compass"
+
+## 1. 프로젝트 개요
+
+### 1.1. 프로젝트명
+- English Compass (가칭)
+
+### 1.2. 한 줄 요약
+- AI와의 실전 롤플레잉 및 정밀 피드백을 통해 기존 언어 학습의 한계를 극복하는 개인화된 언어 학습 플랫폼
+
+### 1.3. 해결하고자 하는 문제 (Pain Points)
+- **컨텍스트 및 뉘앙스 부족:** 기존 AI의 획일적이고 기계적인 응답
+- **단순한 평가 시스템:** 발음, 문법 등 기계적 채점에만 의존
+- **개인화 부족:** 사용자의 관심사, 목표, 약점을 반영하지 못하는 콘텐츠
+- **실전 연습 한계:** 실제 사람과 대화하는 듯한 자연스러운 상호작용 부재
+
+### 1.4. 핵심 솔루션
+- **AI 기반 개인화:** ChatCompletion, Gemini API를 활용한 맞춤형 롤플레잉 및 미디어 콘텐츠 추천
+- **정밀한 음성 평가:** Whisper API와 LLM을 결합한 다차원적(발음, 문법, 유창성) 피드백 시스템
+- **성장 시각화:** 학습 이력 및 성과 분석을 통한 상세한 대시보드 제공
+
+---
+
+## 2. 시스템 아키텍처
+
+### 2.1. 전체 구조
+- 마이크로서비스 아키텍처 (MSA)
+
+### 2.2. 기술 스택 (Tech Stack)
+- **Frontend:** React.js, TypeScript
+- **Backend (All Services):** Spring Boot (Java)
+- **API Gateway:** Kong (또는 Spring Cloud Gateway)
+- **Primary Database:** PostgreSQL (영구 데이터 저장)
+- **In-Memory Database:** Redis (세션, 캐시, 임시 데이터 저장)
+- **Event Bus:** Apache Kafka (서비스 간 비동기 통신)
+- **External APIs:** OpenAI (ChatGPT, Whisper), Google Gemini, TTS Service
+
+### 2.3. 마이크로서비스 목록 및 역할
+- **User Service:** 사용자 계정, 프로필, 학습 설정 관리
+- **Problem Service:** 사용자 맞춤형 학습 문제 선별 및 생성
+- **Speech Evaluation Service:** AI와의 롤플레잉 회화 및 음성 평가
+- **Media Recommendation Service:** 맞춤형 미디어 콘텐츠 추천 (⭐ **현재 작업 초점**)
+- **Learning Management Service:** 모든 학습 이력 및 성과 데이터 관리
+
+---
+
+## 3. 🎯 현재 작업 컨텍스트 (Current Working Context)
+
+### 3.1. 현재 작업 경로 및 초점
+- **현재 개발 초점은 `Media Recommendation Service` 입니다.**
+- 이 서비스는 사용자의 학습 활동이 끝난 후, 학습 동기를 유지하고 언어에 대한 몰입을 돕기 위한 핵심적인 역할을 담당합니다. 비동기 이벤트 처리와 외부 AI API 연동이 주요 기술 과제입니다.
+
+### 3.2. Media Recommendation Service 상세 명세
+
+#### 핵심 역할
+- 사용자의 최근 학습 내용, 수준, 관심사를 종합적으로 분석하여 개인화된 미디어 콘텐츠(YouTube, Podcast, 영화 등)를 추천합니다.
+
+#### 주요 기능 플로우
+1.  **[이벤트 수신]** **Apache Kafka**의 특정 토픽(e.g., `learning-events`)을 계속 리스닝합니다.
+2.  **[메시지 소비]** `Learning Management Service`가 발행한 **"학습 세션 완료" 이벤트**를 소비(Consume)합니다. 이 이벤트에는 `userId`, `completedTopic`, `userLevel` 등의 정보가 포함됩니다.
+3.  **[프롬프트 엔지니어링]** 수신한 이벤트 정보와 `UserService`로부터 조회한 사용자의 관심사를 조합하여 **Gemini API**에 보낼 상세한 프롬프트를 생성합니다.
+    -   *프롬프트 예시: "B1 레벨의 영어 학습자가 방금 '여행 계획'에 대한 학습을 마쳤습니다. 이 사용자의 주 관심사는 '기술'과 '다큐멘터리'입니다. '여행 계획' 주제와 연관성이 있으면서 사용자가 흥미를 느낄 만한 유튜브 영상 1개와 팟캐스트 에피소드 1개를 추천해주세요. 각 추천 항목에 대해 제목, 짧은 설명, URL을 포함하여 JSON 형식으로 응답해주세요."*
+4.  **[Gemini API 호출]** 생성된 프롬프트로 Gemini API를 호출하여 추천 결과를 받습니다.
+5.  **[응답 파싱 및 저장]** Gemini로부터 받은 추천 결과(JSON)를 파싱하여 **PostgreSQL** 데이터베이스에 `userId`와 함께 저장합니다.
+6.  **[(확장 기능) OTT 정보 조회]** 만약 추천된 콘텐츠가 영화나 드라마일 경우, 해당 제목으로 별도의 외부 DB API(예: TMDB)를 호출하여 시청 가능한 OTT 플랫폼 정보를 조회하고, 추천 결과에 함께 저장합니다.
+
+#### 연동 시스템
+- **Kafka (구독자):** '학습 완료' 이벤트를 수신하여 추천 로직을 트리거합니다.
+- **Gemini API:** 사용자의 문맥에 맞는 맞춤 미디어 추천 목록을 생성합니다.
+- **PostgreSQL:** 생성된 추천 콘텐츠 목록을 영구 저장합니다.
+- **(선택) 외부 DB API:** 영화/드라마의 OTT 플랫폼 정보를 조회합니다.
+
+#### 주요 API 엔드포인트
+- `GET /api/v1/media/recommendations`: 클라이언트가 현재 로그인된 사용자의 최신 추천 목록을 조회하는 데 사용됩니다.
