@@ -10,12 +10,24 @@ Media Recommendation Service는 AI 기반 언어 학습 플랫폼 "English Compa
 - **Database**: H2 (개발), MySQL (운영)
 - **Message Queue**: Apache Kafka
 - **AI Service**: Google Gemini API
-- **Port**: 8083
+- **Port**: 8080 (Docker 환경)
+
+### 🐳 Docker 환경
+
+Media Service는 Docker 컨테이너 환경에서 실행됩니다:
+
+- **Media Service**: `http://localhost:8080`
+- **MySQL**: `localhost:3307`
+- **Redis**: `localhost:6380`
+- **Kafka**: `localhost:29093`
+- **Zookeeper**: `localhost:2182`
+
+Docker 환경 설정은 `docker-compose.yml`과 `Dockerfile`을 참조하세요.
 
 ## 🔗 Base URL
 
 ```
-http://localhost:8083
+http://localhost:8080
 ```
 
 ---
@@ -47,9 +59,9 @@ http://localhost:8083
 {
   "status": "SUCCESS",
   "message": "사용자 요청 기반 추천이 성공적으로 생성되었습니다.",
-  "totalRecommendations": 5,
-  "selectedGenres": ["액션", "스릴러", "SF", "판타지"],
-  "generatedAt": "2025-09-02T23:00:00",
+  "totalRecommendations": 4,
+  "selectedGenres": ["EDUCATION", "ENTERTAINMENT"],
+  "generatedAt": [2025,9,3,15,2,34,733233010],
   "recommendations": null
 }
 ```
@@ -129,15 +141,7 @@ http://localhost:8083
 **Response (200):**
 ```json
 {
-  "status": "UP",
-  "components": {
-    "db": {
-      "status": "UP"
-    },
-    "diskSpace": {
-      "status": "UP"
-    }
-  }
+  "status": "UP"
 }
 ```
 
@@ -258,22 +262,66 @@ http://localhost:8083
 
 ### 1. 장르 목록 조회
 ```bash
-curl -X GET http://localhost:8083/api/recommendations/genres
+curl -X GET http://localhost:8080/api/recommendations/genres
+```
+
+**응답 예시:**
+```json
+{
+  "genres": ["액션", "드라마", "코미디", "로맨스", "스릴러", "공포", "미스터리", "SF", "판타지", "범죄", "전쟁", "음악", "애니메이션", "다큐멘터리"],
+  "message": "사용 가능한 장르 목록입니다.",
+  "totalCount": 14
+}
 ```
 
 ### 2. 사용자 요청 기반 추천 생성
 ```bash
-curl -X POST http://localhost:8083/api/recommendations/user-requested \
+curl -X POST http://localhost:8080/api/recommendations/user-requested \
   -H "Content-Type: application/json" \
   -d '{
-    "userId": 1,
-    "selectedGenres": ["액션", "스릴러", "SF"]
+    "userId": 123,
+    "selectedGenres": ["EDUCATION", "ENTERTAINMENT"]
   }'
+```
+
+**응답 예시:**
+```json
+{
+  "status": "SUCCESS",
+  "message": "사용자 요청 기반 추천이 성공적으로 생성되었습니다.",
+  "totalRecommendations": 4,
+  "selectedGenres": ["EDUCATION", "ENTERTAINMENT"],
+  "generatedAt": [2025,9,3,15,2,34,733233010],
+  "recommendations": null
+}
 ```
 
 ### 3. 추천 히스토리 조회
 ```bash
-curl -X GET http://localhost:8083/api/recommendations/user-requested/1
+curl -X GET http://localhost:8080/api/recommendations/user-requested/123
+```
+
+**응답 예시:**
+```json
+{
+  "status": "SUCCESS",
+  "message": "사용자 요청 기반 추천 히스토리 조회 완료",
+  "totalRecommendations": 0,
+  "generatedAt": [2025,9,3,15,2,53,223206130],
+  "recommendations": null
+}
+```
+
+### 4. 헬스 체크
+```bash
+curl -X GET http://localhost:8080/actuator/health
+```
+
+**응답 예시:**
+```json
+{
+  "status": "UP"
+}
 ```
 
 ---

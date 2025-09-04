@@ -43,7 +43,7 @@ services:
       - MYSQL_PASSWORD=${DB_PASSWORD}
       - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./init-scripts:/docker-entrypoint-initdb.d
@@ -62,7 +62,7 @@ services:
     image: redis:7-alpine
     container_name: middle-point-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     networks:
@@ -91,7 +91,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     ports:
-      - "29092:29092"
+      - "29093:29092"
     depends_on:
       - zookeeper
     networks:
@@ -111,7 +111,7 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "2181:2181"
+      - "2182:2181"
     networks:
       - kdt-network
     restart: unless-stopped
@@ -122,29 +122,7 @@ services:
       retries: 3
       start_period: 30s
 
-  # Nginx 웹 서버 및 로드 밸런서
-  nginx:
-    image: nginx:alpine
-    container_name: middle-point-nginx
-    ports:
-      - "80:80"      # HTTP
-      - "443:443"    # HTTPS (선택사항)
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/html:/usr/share/nginx/html:ro
-      - ./nginx/logs:/var/log/nginx
-    depends_on:
-      - app
-    networks:
-      - kdt-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+
 
 volumes:
   mysql_data:

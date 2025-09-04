@@ -65,13 +65,13 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         // 프롬프트에서 학습 주제 추출
         String topic = extractTopicFromPrompt(prompt);
         
-        return """
+        return String.format("""
             ```json
             {
               "recommendations": [
                 {
-                  "title": "Quick English Grammar Fix - " + topic + " in 5 Minutes",
-                  "description": "Fast-paced grammar lesson focusing on common mistakes in " + topic + " topics",
+                  "title": "Quick English Grammar Fix - %s in 5 Minutes",
+                  "description": "Fast-paced grammar lesson focusing on common mistakes in %s topics",
                   "url": "https://www.youtube.com/watch?v=realtime1",
                   "thumbnailUrl": "https://img.youtube.com/vi/realtime1/maxresdefault.jpg",
                   "playUrl": "https://www.youtube.com/embed/realtime1",
@@ -88,8 +88,8 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                   "publishedAt": "2024-01-20"
                 },
                 {
-                  "title": "Essential " + topic + " Vocabulary - 10 Minute Review",
-                  "description": "Compact vocabulary review for " + topic + " with practical examples",
+                  "title": "Essential %s Vocabulary - 10 Minute Review",
+                  "description": "Compact vocabulary review for %s with practical examples",
                   "url": "https://www.youtube.com/watch?v=realtime2",
                   "thumbnailUrl": "https://img.youtube.com/vi/realtime2/maxresdefault.jpg",
                   "playUrl": "https://www.youtube.com/embed/realtime2",
@@ -106,8 +106,8 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                   "publishedAt": "2024-01-18"
                 },
                 {
-                  "title": "5-Minute " + topic + " Practice Session",
-                  "description": "Quick practice exercises to reinforce " + topic + " learning",
+                  "title": "5-Minute %s Practice Session",
+                  "description": "Quick practice exercises to reinforce %s learning",
                   "url": "https://www.youtube.com/watch?v=realtime3",
                   "thumbnailUrl": "https://img.youtube.com/vi/realtime3/maxresdefault.jpg",
                   "playUrl": "https://www.youtube.com/embed/realtime3",
@@ -126,7 +126,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
               ]
             }
             ```
-            """;
+            """, topic, topic, topic, topic, topic, topic);
     }
     
     /**
@@ -136,13 +136,13 @@ public class GeminiApiServiceImpl implements GeminiApiService {
         // 프롬프트에서 학습 주제 추출
         String topic = extractTopicFromPrompt(prompt);
         
-        return """
+        return String.format("""
             ```json
             {
               "recommendations": [
                 {
-                  "title": "Complete " + topic + " Mastery Course - 2 Hours",
-                  "description": "Comprehensive course covering all aspects of " + topic + " from beginner to advanced",
+                  "title": "Complete %s Mastery Course - 2 Hours",
+                  "description": "Comprehensive course covering all aspects of %s from beginner to advanced",
                   "url": "https://www.youtube.com/watch?v=periodic1",
                   "thumbnailUrl": "https://img.youtube.com/vi/periodic1/maxresdefault.jpg",
                   "playUrl": "https://www.youtube.com/embed/periodic1",
@@ -159,11 +159,11 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                   "publishedAt": "2024-01-10"
                 },
                 {
-                  "title": "The " + topic + " Movie Collection",
-                  "description": "Curated collection of movies and dramas perfect for " + topic + " learning",
-                  "url": "https://www.netflix.com/collection/" + topic + "-learning",
+                  "title": "The %s Movie Collection",
+                  "description": "Curated collection of movies and dramas perfect for %s learning",
+                  "url": "https://www.netflix.com/collection/%s-learning",
                   "thumbnailUrl": "https://example.com/netflix-thumbnail.jpg",
-                  "playUrl": "https://www.netflix.com/collection/" + topic + "-learning",
+                  "playUrl": "https://www.netflix.com/collection/%s-learning",
                   "mediaType": "VIDEO",
                   "platform": "Netflix",
                   "difficultyLevel": "중급",
@@ -177,15 +177,15 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                   "publishedAt": "2024-01-01"
                 },
                 {
-                  "title": "Advanced " + topic + " Podcast Series",
-                  "description": "Weekly podcast episodes diving deep into advanced " + topic + " concepts",
-                  "url": "https://open.spotify.com/show/advanced-" + topic + "-podcast",
+                  "title": "Advanced %s Podcast Series",
+                  "description": "Weekly podcast episodes diving deep into advanced %s concepts",
+                  "url": "https://open.spotify.com/show/advanced-%s-podcast",
                   "thumbnailUrl": "https://example.com/podcast-thumbnail.jpg",
-                  "playUrl": "https://open.spotify.com/show/advanced-" + topic + "-podcast",
+                  "playUrl": "https://open.spotify.com/show/advanced-%s-podcast",
                   "mediaType": "AUDIO",
                   "platform": "Spotify",
                   "difficultyLevel": "고급",
-                  "recommendationReason": "고급 수준의 " + topic + " 개념을 심화 학습할 수 있는 팟캐스트입니다",
+                  "recommendationReason": "고급 수준의 %s 개념을 심화 학습할 수 있는 팟캐스트입니다",
                   "estimatedDuration": 45,
                   "language": "en",
                   "category": "팟캐스트",
@@ -195,15 +195,15 @@ public class GeminiApiServiceImpl implements GeminiApiService {
                   "publishedAt": "2024-01-05"
                 },
                 {
-                  "title": "The Complete " + topic + " Audiobook",
-                  "description": "Comprehensive audiobook covering all aspects of " + topic + " with native pronunciation",
-                  "url": "https://www.audible.com/book/" + topic + "-complete",
+                  "title": "The Complete %s Audiobook",
+                  "description": "Comprehensive audiobook covering all aspects of %s with native pronunciation",
+                  "url": "https://www.audible.com/book/%s-complete",
                   "thumbnailUrl": "https://example.com/audiobook-thumbnail.jpg",
-                  "playUrl": "https://www.audible.com/book/" + topic + "-complete",
+                  "playUrl": "https://www.audible.com/book/%s-complete",
                   "mediaType": "AUDIO",
                   "platform": "Audible",
                   "difficultyLevel": "중급",
-                  "recommendationReason": "오디오북을 통해 " + topic + "를 체계적으로 학습하고 발음도 함께 연습할 수 있습니다",
+                  "recommendationReason": "오디오북을 통해 %s를 체계적으로 학습하고 발음도 함께 연습할 수 있습니다",
                   "estimatedDuration": 360,
                   "language": "en",
                   "category": "오디오북",
@@ -215,7 +215,7 @@ public class GeminiApiServiceImpl implements GeminiApiService {
               ]
             }
             ```
-            """;
+            """, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic);
     }
     
     /**
