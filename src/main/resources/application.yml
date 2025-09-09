@@ -1,53 +1,76 @@
 server:
-  port: 8083
+  port: 8084
 
 spring:
   application:
     name: media-service
   
   datasource:
-    url: jdbc:h2:mem:mediadb
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-  
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: jdbc:mysql://localhost:3307/mediadb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: mediauser
+    password: mediapass
   
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:
         format_sql: true
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.MySQLDialect
   
-  # Kafka 설정
+  # Kafka 설정 (로컬 Docker)
   kafka:
-    bootstrap-servers: localhost:9092
+    enabled: true  # Kafka 활성화
+    bootstrap-servers: kafka:9092 # Docker Compose 서비스 이름 사용
     consumer:
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      group-id: media-recommendation-service # 그룹 ID 추가
       properties:
         spring.json.trusted.packages: com.mediaservice.event
+  
+  # Spring AI Vertex AI Gemini 설정
+  ai:
+    vertex:
+      ai:
+        gemini:
+          enabled: false  # Spring AI 자동 설정 비활성화
+          project-id: ${GCP_PROJECT_ID}
+          location: ${GCP_LOCATION:us-central1}
+          chat:
+            options:
+
+              model: ${GEMINI_MODEL_NAME:gemini-1.5-flash}
+              temperature: 0.4
+              top-k: 1
+              top-p: 0.95
+              max-output-tokens: 8192
 
 # Kafka 토픽 및 Consumer 설정
 kafka:
+  enabled: true
   topics:
     learning-events: learning-events
+    recommendation-created: recommendation-created
   consumer:
     group-id: media-recommendation-service
 
-# Gemini API 설정 (환경 변수에서 가져옴)
+# Gemini API 설정
 gemini:
   api:
-    key: ${GEMINI_API_KEY:mock-api-key-for-development}
+    key: ${GEMINI_API_KEY}
+  model:
+    name: ${GEMINI_MODEL_NAME:gemini-1.5-flash}
+
+# Perplexity API 설정
+perplexity:
+  api:
+    key: ${PERPLEXITY_API_KEY}
     model:
-      name: ${GEMINI_MODEL_NAME:gemini-1.5-flash}
+      name: ${PERPLEXITY_MODEL_NAME:sonar}
 
 logging:
   level:

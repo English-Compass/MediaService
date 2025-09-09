@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 
 /**
  * 난이도별 성취도 뷰 DTO
@@ -16,15 +15,9 @@ import jakarta.persistence.*;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "difficulty_achievement_view")
-@IdClass(DifficultyAchievementViewId.class)
 public class DifficultyAchievementView {
     
-    @Id
     private Long userId;
-    
-    @Id
     private Integer difficultyLevel;
     
     // 난이도별 통계

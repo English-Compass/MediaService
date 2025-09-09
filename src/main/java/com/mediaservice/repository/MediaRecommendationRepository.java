@@ -1,5 +1,6 @@
 package com.mediaservice.repository;
 
+import com.mediaservice.enums.RecommendationType;
 import com.mediaservice.model.MediaRecommendation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -15,15 +16,15 @@ public interface MediaRecommendationRepository extends JpaRepository<MediaRecomm
     /**
      * 사용자 ID로 추천 목록을 조회합니다.
      */
-    List<MediaRecommendation> findByUserIdOrderByGeneratedAtDesc(Long userId);
+    List<MediaRecommendation> findByUserIdOrderByGeneratedAtDesc(String userId);
     
     /**
      * 사용자 ID와 추천 유형으로 추천 목록을 조회합니다.
      */
-    List<MediaRecommendation> findByUserIdAndRecommendationTypeOrderByGeneratedAtDesc(Long userId, String recommendationType);
+    List<MediaRecommendation> findByUserIdAndRecommendationTypeOrderByGeneratedAtDesc(String userId, RecommendationType recommendationType);
     
     /**
      * 사용자 ID와 세션 ID로 추천 목록을 조회합니다.
      */
-    List<MediaRecommendation> findByUserIdAndSessionIdOrderByGeneratedAtDesc(Long userId, String sessionId);
+    List<MediaRecommendation> findByUserIdAndSessionIdOrderByGeneratedAtDesc(String userId, String sessionId);
 }

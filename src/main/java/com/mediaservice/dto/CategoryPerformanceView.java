@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 /**
@@ -17,18 +16,10 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Entity
-@Table(name = "category_performance_view")
-@IdClass(CategoryPerformanceViewId.class)
 public class CategoryPerformanceView {
     
-    @Id
     private Long userId;
-    
-    @Id
     private String majorCategory;
-    
-    @Id
     private String minorCategory;
     
     // 카테고리별 통계

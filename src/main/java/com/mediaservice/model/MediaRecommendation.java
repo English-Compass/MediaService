@@ -25,8 +25,11 @@ public class MediaRecommendation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
+    @Column(name = "recommendation_id", nullable = false, unique = true)
+    private String recommendationId;
+    
     @Column(name = "user_id", nullable = false)
-    private Long userId;
+    private String userId;
     
     @Column(name = "title", nullable = false)
     private String title;

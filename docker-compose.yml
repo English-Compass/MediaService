@@ -5,18 +5,24 @@ services:
     build: .
     container_name: middle-point-app
     ports:
-      - "8080:8080"
+      - "8084:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=docker
+      # Gemini API Credentials
+      - GCP_PROJECT_ID=gcp-project-id-placeholder
+      - GEMINI_API_KEY=AIzaSyAzD2lThmfu03qOfd0Pc6K73AFi797c2Z4
       # MySQL 연결 (db 컨테이너)
-      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
-      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - SPRING_DATASOURCE_URL=jdbc:mysql://db:3306/mediadb?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+      - SPRING_DATASOURCE_USERNAME=mediauser
+      - SPRING_DATASOURCE_PASSWORD=mediapass
       # Redis 연결 (redis 컨테이너)
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
       # Kafka 연결 (kafka 컨테이너)
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # 서버 포트 설정
+      - SPRING_SERVER_PORT=8084
       # 외부 API 키
       - KAKAO_API_KEY=${KAKAO_API_KEY}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
@@ -38,10 +44,10 @@ services:
     image: mysql:8.0
     container_name: middle-point-mysql
     environment:
-      - MYSQL_DATABASE=${DB_NAME}
-      - MYSQL_USER=${DB_USERNAME}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
-      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD}
+      - MYSQL_DATABASE=mediadb
+      - MYSQL_USER=mediauser
+      - MYSQL_PASSWORD=mediapass
+      - MYSQL_ROOT_PASSWORD=rootpass
     ports:
       - "3307:3306"
     volumes:

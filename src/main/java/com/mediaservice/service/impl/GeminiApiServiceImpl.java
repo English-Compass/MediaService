@@ -1,17 +1,22 @@
 package com.mediaservice.service.impl;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mediaservice.enums.MediaType;
-import com.mediaservice.model.MediaRecommendation;
+import com.mediaservice.event.LearningCompletedEvent;
+import com.mediaservice.model.UserPerformanceSummary;
 import com.mediaservice.service.GeminiApiService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -19,300 +24,185 @@ import java.util.List;
 public class GeminiApiServiceImpl implements GeminiApiService {
 
     private final ObjectMapper objectMapper;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${gemini.api.key}")
+    private String apiKey;
+
+    @Value("${gemini.model.name:gemini-1.5-flash}")
+    private String modelName;
 
     @Override
-    public List<MediaRecommendation> generateRecommendations(String prompt) {
+    public String generateSearchPromptForRealTime(LearningCompletedEvent event) {
         try {
-            log.info("🤖 Mock Gemini API 호출 시작");
-            
-            // 프롬프트 유형 판단
-            boolean isRealTimeRecommendation = prompt.contains("실시간 세션 기반 추천") || 
-                                            prompt.contains("짧은 유튜브 동영상 위주");
-            
-            // Mock 응답 생성 (실시간/주기적 추천 구분)
-            String mockResponse = generateMockResponse(prompt, isRealTimeRecommendation);
-            log.debug("📝 Mock Gemini API 응답:\n{}", mockResponse);
-            
-            // JSON 응답 파싱
-            List<MediaRecommendation> recommendations = parseMockResponse(mockResponse);
-            log.info("✅ Mock Gemini API 호출 완료 - 추천 개수: {}, 유형: {}", 
-                    recommendations.size(), 
-                    isRealTimeRecommendation ? "실시간" : "주기적");
-            
-            return recommendations;
-            
+            log.info("🤖 Gemini API 호출 시작 - 실시간 추천용 검색 프롬프트 생성");
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+
+            // 학습 세션 분석을 위한 프롬프트
+            String analysisPrompt = buildRealTimeAnalysisPrompt(event);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", List.of(
+                Map.of("parts", List.of(
+                    Map.of("text", analysisPrompt)
+                ))
+            ));
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+            if (response.getBody() != null && response.getBody().containsKey("candidates")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
+                if (!candidates.isEmpty()) {
+                    Map<String, Object> candidate = candidates.get(0);
+                    if (candidate.containsKey("content")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> content = (Map<String, Object>) candidate.get("content");
+                        if (content.containsKey("parts")) {
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+                            if (!parts.isEmpty()) {
+                                String searchPrompt = (String) parts.get(0).get("text");
+                                log.info("✅ Gemini API 호출 완료 - 검색 프롬프트 생성 성공");
+                                return searchPrompt;
+                            }
+                        }
+                    }
+                }
+            }
+
+            log.warn("⚠️ Gemini API 응답에서 검색 프롬프트를 파싱할 수 없습니다.");
+            return "영어 학습에 도움되는 유튜브 영상 추천";
+
         } catch (Exception e) {
-            log.error("❌ Mock Gemini API 호출 중 오류 발생 - Error: {}", e.getMessage(), e);
-            throw new RuntimeException("Mock Gemini API 호출 실패", e);
+            log.error("❌ Gemini API 호출 실패", e);
+            return "영어 학습에 도움되는 유튜브 영상 추천";
         }
     }
-    
-    /**
-     * Mock 응답을 생성합니다. (실시간/주기적 추천 구분)
-     */
-    private String generateMockResponse(String prompt, boolean isRealTimeRecommendation) {
-        if (isRealTimeRecommendation) {
-            return generateRealTimeMockResponse(prompt);
-        } else {
-            return generatePeriodicMockResponse(prompt);
-        }
-    }
-    
-    /**
-     * 실시간 추천용 Mock 응답 생성 (짧은 유튜브 동영상 위주)
-     */
-    private String generateRealTimeMockResponse(String prompt) {
-        // 프롬프트에서 학습 주제 추출
-        String topic = extractTopicFromPrompt(prompt);
-        
-        return String.format("""
-            ```json
-            {
-              "recommendations": [
-                {
-                  "title": "Quick English Grammar Fix - %s in 5 Minutes",
-                  "description": "Fast-paced grammar lesson focusing on common mistakes in %s topics",
-                  "url": "https://www.youtube.com/watch?v=realtime1",
-                  "thumbnailUrl": "https://img.youtube.com/vi/realtime1/maxresdefault.jpg",
-                  "playUrl": "https://www.youtube.com/embed/realtime1",
-                  "mediaType": "VIDEO",
-                  "platform": "YouTube",
-                  "difficultyLevel": "초급",
-                  "recommendationReason": "방금 학습한 내용의 약점을 빠르게 보완할 수 있는 짧은 동영상입니다",
-                  "estimatedDuration": 5,
-                  "language": "en",
-                  "category": "문법",
-                  "videoId": "realtime1",
-                  "channelName": "Quick English Fix",
-                  "viewCount": "89K",
-                  "publishedAt": "2024-01-20"
-                },
-                {
-                  "title": "Essential %s Vocabulary - 10 Minute Review",
-                  "description": "Compact vocabulary review for %s with practical examples",
-                  "url": "https://www.youtube.com/watch?v=realtime2",
-                  "thumbnailUrl": "https://img.youtube.com/vi/realtime2/maxresdefault.jpg",
-                  "playUrl": "https://www.youtube.com/embed/realtime2",
-                  "mediaType": "VIDEO",
-                  "platform": "YouTube",
-                  "difficultyLevel": "초급",
-                  "recommendationReason": "학습한 어휘를 즉시 복습하고 활용할 수 있는 짧은 동영상입니다",
-                  "estimatedDuration": 10,
-                  "language": "en",
-                  "category": "어휘",
-                  "videoId": "realtime2",
-                  "channelName": "English Vocabulary Pro",
-                  "viewCount": "156K",
-                  "publishedAt": "2024-01-18"
-                },
-                {
-                  "title": "5-Minute %s Practice Session",
-                  "description": "Quick practice exercises to reinforce %s learning",
-                  "url": "https://www.youtube.com/watch?v=realtime3",
-                  "thumbnailUrl": "https://img.youtube.com/vi/realtime3/maxresdefault.jpg",
-                  "playUrl": "https://www.youtube.com/embed/realtime3",
-                  "mediaType": "VIDEO",
-                  "platform": "YouTube",
-                  "difficultyLevel": "초급",
-                  "recommendationReason": "방금 학습한 내용을 바로 연습할 수 있는 실습 동영상입니다",
-                  "estimatedDuration": 5,
-                  "language": "en",
-                  "category": "실습",
-                  "videoId": "realtime3",
-                  "channelName": "English Practice Hub",
-                  "viewCount": "234K",
-                  "publishedAt": "2024-01-15"
-                }
-              ]
-            }
-            ```
-            """, topic, topic, topic, topic, topic, topic);
-    }
-    
-    /**
-     * 주기적 추천용 Mock 응답 생성 (다양한 미디어 유형)
-     */
-    private String generatePeriodicMockResponse(String prompt) {
-        // 프롬프트에서 학습 주제 추출
-        String topic = extractTopicFromPrompt(prompt);
-        
-        return String.format("""
-            ```json
-            {
-              "recommendations": [
-                {
-                  "title": "Complete %s Mastery Course - 2 Hours",
-                  "description": "Comprehensive course covering all aspects of %s from beginner to advanced",
-                  "url": "https://www.youtube.com/watch?v=periodic1",
-                  "thumbnailUrl": "https://img.youtube.com/vi/periodic1/maxresdefault.jpg",
-                  "playUrl": "https://www.youtube.com/embed/periodic1",
-                  "mediaType": "VIDEO",
-                  "platform": "YouTube",
-                  "difficultyLevel": "중급",
-                  "recommendationReason": "장기적 성장을 위한 체계적이고 포괄적인 학습 콘텐츠입니다",
-                  "estimatedDuration": 120,
-                  "language": "en",
-                  "category": "종합 과정",
-                  "videoId": "periodic1",
-                  "channelName": "English Mastery Academy",
-                  "viewCount": "45K",
-                  "publishedAt": "2024-01-10"
-                },
-                {
-                  "title": "The %s Movie Collection",
-                  "description": "Curated collection of movies and dramas perfect for %s learning",
-                  "url": "https://www.netflix.com/collection/%s-learning",
-                  "thumbnailUrl": "https://example.com/netflix-thumbnail.jpg",
-                  "playUrl": "https://www.netflix.com/collection/%s-learning",
-                  "mediaType": "VIDEO",
-                  "platform": "Netflix",
-                  "difficultyLevel": "중급",
-                  "recommendationReason": "영화와 드라마를 통해 자연스러운 영어 표현을 학습할 수 있습니다",
-                  "estimatedDuration": 480,
-                  "language": "en",
-                  "category": "영화/드라마",
-                  "videoId": null,
-                  "channelName": "Netflix",
-                  "viewCount": null,
-                  "publishedAt": "2024-01-01"
-                },
-                {
-                  "title": "Advanced %s Podcast Series",
-                  "description": "Weekly podcast episodes diving deep into advanced %s concepts",
-                  "url": "https://open.spotify.com/show/advanced-%s-podcast",
-                  "thumbnailUrl": "https://example.com/podcast-thumbnail.jpg",
-                  "playUrl": "https://open.spotify.com/show/advanced-%s-podcast",
-                  "mediaType": "AUDIO",
-                  "platform": "Spotify",
-                  "difficultyLevel": "고급",
-                  "recommendationReason": "고급 수준의 %s 개념을 심화 학습할 수 있는 팟캐스트입니다",
-                  "estimatedDuration": 45,
-                  "language": "en",
-                  "category": "팟캐스트",
-                  "videoId": null,
-                  "channelName": "Advanced English Learning",
-                  "viewCount": "12K",
-                  "publishedAt": "2024-01-05"
-                },
-                {
-                  "title": "The Complete %s Audiobook",
-                  "description": "Comprehensive audiobook covering all aspects of %s with native pronunciation",
-                  "url": "https://www.audible.com/book/%s-complete",
-                  "thumbnailUrl": "https://example.com/audiobook-thumbnail.jpg",
-                  "playUrl": "https://www.audible.com/book/%s-complete",
-                  "mediaType": "AUDIO",
-                  "platform": "Audible",
-                  "difficultyLevel": "중급",
-                  "recommendationReason": "오디오북을 통해 %s를 체계적으로 학습하고 발음도 함께 연습할 수 있습니다",
-                  "estimatedDuration": 360,
-                  "language": "en",
-                  "category": "오디오북",
-                  "videoId": null,
-                  "channelName": "Audible",
-                  "viewCount": null,
-                  "publishedAt": "2024-01-08"
-                }
-              ]
-            }
-            ```
-            """, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic, topic);
-    }
-    
-    /**
-     * 프롬프트에서 학습 주제를 추출합니다.
-     */
-    private String extractTopicFromPrompt(String prompt) {
-        if (prompt.contains("여행")) return "여행";
-        if (prompt.contains("비즈니스")) return "비즈니스";
-        if (prompt.contains("기술")) return "기술";
-        return "일반";
-    }
-    
-    /**
-     * Mock 응답을 파싱합니다.
-     */
-    private List<MediaRecommendation> parseMockResponse(String responseText) {
+
+    @Override
+    public String generateSearchPromptForUserRequested(UserPerformanceSummary userPerformance, List<String> selectedGenres) {
         try {
-            // JSON 부분 추출 (```json과 ``` 사이의 내용)
-            String jsonContent = extractJsonContent(responseText);
-            
-            if (jsonContent == null) {
-                log.warn("⚠️ JSON 응답을 찾을 수 없음 - 전체 응답: {}", responseText);
-                return new ArrayList<>();
-            }
-            
-            JsonNode rootNode = objectMapper.readTree(jsonContent);
-            JsonNode recommendationsNode = rootNode.get("recommendations");
-            
-            if (recommendationsNode == null || !recommendationsNode.isArray()) {
-                log.warn("⚠️ recommendations 배열을 찾을 수 없음");
-                return new ArrayList<>();
-            }
-            
-            List<MediaRecommendation> recommendations = new ArrayList<>();
-            
-            for (JsonNode recNode : recommendationsNode) {
-                try {
-                    MediaRecommendation recommendation = MediaRecommendation.builder()
-                            .title(recNode.get("title").asText())
-                            .description(recNode.get("description").asText())
-                            .url(recNode.get("url").asText())
-                            .mediaType(parseMediaType(recNode.get("mediaType").asText()))
-                            .platform(recNode.get("platform").asText())
-                            .difficultyLevel(recNode.get("difficultyLevel").asText())
-                            .recommendationReason(recNode.get("recommendationReason").asText())
-                            .estimatedDuration(recNode.has("estimatedDuration") ? 
-                                    recNode.get("estimatedDuration").asInt() : null)
-                            .language(recNode.has("language") ? 
-                                    recNode.get("language").asText() : "en")
-                            .category(recNode.has("category") ? 
-                                    recNode.get("category").asText() : null)
-                            .build();
-                    
-                    recommendations.add(recommendation);
-                    
-                } catch (Exception e) {
-                    log.warn("⚠️ 개별 추천 항목 파싱 실패 - Node: {}, Error: {}", 
-                            recNode, e.getMessage());
+            log.info("🤖 Gemini API 호출 시작 - 사용자 요청용 검색 프롬프트 생성");
+
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + apiKey;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Content-Type", "application/json");
+
+            // 사용자 성과 분석을 위한 프롬프트
+            String analysisPrompt = buildUserRequestedAnalysisPrompt(userPerformance, selectedGenres);
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("contents", List.of(
+                Map.of("parts", List.of(
+                    Map.of("text", analysisPrompt)
+                ))
+            ));
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
+
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+            if (response.getBody() != null && response.getBody().containsKey("candidates")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) response.getBody().get("candidates");
+                if (!candidates.isEmpty()) {
+                    Map<String, Object> candidate = candidates.get(0);
+                    if (candidate.containsKey("content")) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> content = (Map<String, Object>) candidate.get("content");
+                        if (content.containsKey("parts")) {
+                            @SuppressWarnings("unchecked")
+                            List<Map<String, Object>> parts = (List<Map<String, Object>>) content.get("parts");
+                            if (!parts.isEmpty()) {
+                                String searchPrompt = (String) parts.get(0).get("text");
+                                log.info("✅ Gemini API 호출 완료 - 검색 프롬프트 생성 성공");
+                                return searchPrompt;
+                            }
+                        }
+                    }
                 }
             }
-            
-            return recommendations;
-            
-        } catch (JsonProcessingException e) {
-            log.error("❌ JSON 파싱 실패 - Response: {}, Error: {}", 
-                    responseText, e.getMessage(), e);
-            throw new RuntimeException("Mock Gemini API 응답 파싱 실패", e);
+
+            log.warn("⚠️ Gemini API 응답에서 검색 프롬프트를 파싱할 수 없습니다.");
+            return "영어 학습에 도움되는 유튜브 영상 추천";
+
+        } catch (Exception e) {
+            log.error("❌ Gemini API 호출 실패", e);
+            return "영어 학습에 도움되는 유튜브 영상 추천";
         }
     }
-    
-    private String extractJsonContent(String responseText) {
-        // ```json과 ``` 사이의 내용 추출
-        int startIndex = responseText.indexOf("```json");
-        if (startIndex == -1) {
-            startIndex = responseText.indexOf("```");
+
+    private String buildRealTimeAnalysisPrompt(LearningCompletedEvent event) {
+        StringBuilder prompt = new StringBuilder();
+        
+        prompt.append("학습 세션 결과를 분석하여 Perplexity에게 보낼 YouTube 영상 검색 프롬프트를 작성해주세요.\n\n");
+        
+        prompt.append("## 학습 세션 정보\n");
+        prompt.append("- 사용자 ID: ").append(event.getUserId()).append("\n");
+        prompt.append("- 세션 ID: ").append(event.getSessionId()).append("\n");
+        prompt.append("- 총 문제 수: ").append(event.getTotalQuestions()).append("\n");
+        prompt.append("- 정답 수: ").append(event.getCorrectAnswers()).append("\n");
+        prompt.append("- 정답률: ").append(event.getAccuracyRate()).append("%\n");
+        prompt.append("- 총 학습 시간: ").append(event.getTotalLearningTimeMinutes()).append("분\n\n");
+        
+        if (event.getSessionQuestions() != null && !event.getSessionQuestions().isEmpty()) {
+            prompt.append("## 틀린 문제 분석\n");
+            for (int i = 0; i < Math.min(event.getSessionQuestions().size(), 3); i++) {
+                var question = event.getSessionQuestions().get(i);
+                prompt.append("- 문제: ").append(question.getQuestionText()).append("\n");
+                prompt.append("- 사용자 답: ").append(question.getUserAnswer()).append("\n");
+                prompt.append("- 정답: ").append(question.getCorrectAnswer()).append("\n");
+                prompt.append("- 대분류: ").append(question.getMajorCategory()).append("\n");
+                prompt.append("- 소분류: ").append(question.getMinorCategory()).append("\n");
+                prompt.append("- 난이도: ").append(question.getDifficultyLevel()).append("\n\n");
+            }
         }
         
-        if (startIndex == -1) {
-            return null;
-        }
+        prompt.append("## 요청사항\n");
+        prompt.append("위 학습 세션 결과를 바탕으로, 사용자의 약점을 보완할 수 있는 영어 학습 YouTube 영상을 찾기 위한 검색 프롬프트를 작성해주세요.\n");
+        prompt.append("프롬프트는 간단하고 명확해야 하며, Perplexity가 실제로 검색할 수 있는 키워드를 포함해야 합니다.\n");
+        prompt.append("예시: '영어 문법 기초 학습 유튜브 영상', '영어 어휘 확장 유튜브 영상' 등\n\n");
+        prompt.append("검색 프롬프트만 답변해주세요:");
         
-        startIndex = responseText.indexOf("\n", startIndex) + 1;
-        int endIndex = responseText.lastIndexOf("```");
-        
-        if (endIndex <= startIndex) {
-            return null;
-        }
-        
-        return responseText.substring(startIndex, endIndex).trim();
+        return prompt.toString();
     }
-    
-    private MediaType parseMediaType(String mediaTypeStr) {
-        try {
-            return MediaType.valueOf(mediaTypeStr.toUpperCase());
-        } catch (IllegalArgumentException e) {
-            log.warn("⚠️ 알 수 없는 미디어 타입: {}, 기본값 VIDEO 사용", mediaTypeStr);
-            return MediaType.VIDEO;
+
+    private String buildUserRequestedAnalysisPrompt(UserPerformanceSummary userPerformance, List<String> selectedGenres) {
+        StringBuilder prompt = new StringBuilder();
+        
+        prompt.append("사용자 성과를 분석하여 Perplexity에게 보낼 YouTube 영상 검색 프롬프트를 작성해주세요.\n\n");
+        
+        prompt.append("## 사용자 성과 정보\n");
+        prompt.append("- 사용자 ID: ").append(userPerformance.getUserId()).append("\n");
+        prompt.append("- 선택된 장르: ").append(String.join(", ", selectedGenres)).append("\n");
+        prompt.append("- 전체 정답률: ").append(userPerformance.getOverallAccuracy()).append("%\n");
+        prompt.append("- 총 학습 시간: ").append(userPerformance.getTotalStudyTime()).append("분\n\n");
+        
+        if (userPerformance.getCategoryPerformance() != null && !userPerformance.getCategoryPerformance().isEmpty()) {
+            prompt.append("## 카테고리별 성과\n");
+            for (Map.Entry<String, Double> entry : userPerformance.getCategoryPerformance().entrySet()) {
+                String category = entry.getKey();
+                Double performance = entry.getValue();
+                String status = performance >= 80 ? "우수" : performance >= 60 ? "보통" : "개선 필요";
+                prompt.append("- ").append(category).append(": ").append(performance).append("% (").append(status).append(")\n");
+            }
+            prompt.append("\n");
         }
+        
+        prompt.append("## 요청사항\n");
+        prompt.append("위 사용자 성과를 바탕으로, 선택된 장르에 맞는 영어 학습 YouTube 영상을 찾기 위한 검색 프롬프트를 작성해주세요.\n");
+        prompt.append("프롬프트는 간단하고 명확해야 하며, Perplexity가 실제로 검색할 수 있는 키워드를 포함해야 합니다.\n");
+        prompt.append("예시: '영어 액션 영화 학습 유튜브 영상', '영어 코미디 드라마 학습 유튜브 영상' 등\n\n");
+        prompt.append("검색 프롬프트만 답변해주세요:");
+        
+        return prompt.toString();
     }
 }

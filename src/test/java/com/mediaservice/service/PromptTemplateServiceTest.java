@@ -59,15 +59,15 @@ class PromptTemplateServiceTest {
         assertThat(prompt).isNotEmpty();
 
         // 프롬프트 내용 검증
-        assertThat(prompt).contains("# 🎯 사용자 요청 기반 미디어 추천 프롬프트");
-        assertThat(prompt).contains("## 📋 추천 목표");
-        assertThat(prompt).contains("## 🎬 추천 요구사항");
-        assertThat(prompt).contains("## 📊 사용자 성과 분석");
-        assertThat(prompt).contains("## 🏷️ 카테고리별 성과 분석");
-        assertThat(prompt).contains("## 📈 난이도별 성과 분석");
-        assertThat(prompt).contains("## 🎯 추천 전략");
-        assertThat(prompt).contains("## 🤖 AI 분석 요청");
-        assertThat(prompt).contains("## 📝 출력 형식");
+        assertThat(prompt).contains("# 🎯 User Request-Based Media Recommendation Prompt");
+        assertThat(prompt).contains("## 📋 Recommendation Goal");
+        assertThat(prompt).contains("## 🎬 **English Content** Recommendation Requirements");
+        assertThat(prompt).contains("## 📊 User Performance Analysis");
+        assertThat(prompt).contains("## 🏷️ Category-wise Performance Analysis");
+        assertThat(prompt).contains("## 📈 Difficulty-wise Performance Analysis");
+        assertThat(prompt).contains("## 🎯 **English Learning Focused** Recommendation Strategy");
+        assertThat(prompt).contains("## 🤖 **English Learning Focused** AI Analysis Request");
+        assertThat(prompt).contains("## 📝 Output Format");
 
         // 선택된 장르 검증
         assertThat(prompt).contains("액션, 스릴러, SF, 판타지");

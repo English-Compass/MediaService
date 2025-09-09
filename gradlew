@@ -111,7 +111,6 @@ esac
 
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
-
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
     if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
@@ -240,4 +239,205 @@ eval "set -- $(
     )" '"$@"'
 
 exec "$JAVACMD" "$@"
+
+# Set a couple of environment variables that are used by Gradle, if they are not set.
+#
+# GPR_SYS_PROPS can be used to pass system properties to the Gradle JVM, i.e.
+# the JVM that is running Gradle. The system properties are applied before any
+# build scripts are executed.
+#
+# So, to pass a system property to the wrapper, either set the environment
+# variable, e.g. GPR_SYS_PROPS="-Dprop=value" or add it to gradle.properties.
+#
+# Not all system properties can be set via this mechanism. Some system properties
+# are used by the JVM to configure the JVM itself. These system properties must
+# be passed directly to the JVM as command line arguments.
+
+if [ -z "$GPR_SYS_PROPS" ]; then
+    GPR_SYS_PROPS=""
+fi
+
+#############################################################################
+#
+# Helper functions
+
+# The next section contains logic for locating the gradle-wrapper.jar, which is non-trivial.
+#
+# The wrapper is located by searching the file system relative to the location of this script.
+#
+# The following locations are checked, in order:
+#
+# 1. $APP_HOME/gradle/wrapper/gradle-wrapper.jar
+#
+# 2. $APP_HOME/gradle-wrapper.jar
+#
+# 3. A jar file found using the zero-length-path search pattern.
+#    This search pattern will find the first gradle-wrapper.jar in the current directory,
+#    or in any parent directory. This is the preferred location for the wrapper jar,
+#    and the location that is used by the Gradle project by default.
+#
+# If the wrapper jar cannot be located, the script will die.
+
+# The die function is used to exit the script with an error message.
+die () {
+    echo "$*"
+    exit 1
+} >&2
+
+# The find_upwards function is used to find a file by searching upwards from the
+# current directory.
+
+find_upwards () {
+    (
+    while [ ! -e "$1" ]
+    do
+        if [ "$PWD" = "/" ]; then
+            break
+        fi
+        cd ..
+    done
+    if [ -e "$1" ]; then
+        pwd
+    fi
+    )
+}
+
+# The follow_links function is used to resolve any symbolic links in a path.
+follow_links() {
+    local file="$1"
+    while [ -h "$file" ]; do
+        local link="$(readlink "$file")"
+        if [ -z "$link" ]; then
+            break
+        fi
+        if [ "$(echo "$link" | cut -c1)" = "/" ]; then
+            file="$link"
+        else
+            file="$(dirname "$file")/$link"
+        fi
+    done
+    echo "$file"
+}
+
+# End of helper functions
+#############################################################################
+#
+# Locate the gradle-wrapper.jar
+
+APP_NAME="Gradle"
+APP_BASE_NAME=`basename "$0"`
+
+# Use the maximum column width for the terminal
+# The default is 80, but that may not be wide enough for some of the error messages.
+#
+# The tput command is used to get the number of columns, but it is not available
+# on all systems. If it is not available, we will default to 80.
+#
+if [ -x /usr/bin/tput ]; then
+    COLUMNS=`/usr/bin/tput cols`
+fi
+if [ -z "$COLUMNS" ] || [ "$COLUMNS" -lt 80 ]; then
+    COLUMNS=80
+fi
+
+# The sed command is used to wrap the error messages to the width of the terminal.
+#
+# The first sed command will replace all occurrences of a space with a newline,
+# and then the second sed command will add a newline every N characters, where N
+# is the number of columns.
+#
+# The fold command is used to wrap the error messages to the width of the terminal.
+#
+if [ -x /usr/bin/fold ]; then
+    WRAPPER_NAME=`echo "$APP_NAME Wrapper" | fold -s -w $COLUMNS`
+else
+    WRAPPER_NAME=`echo "$APP_NAME Wrapper"`
+fi
+
+# The realpath command is used to get the canonical path to the script.
+#
+# If the realpath command is not available, we will use our own implementation.
+#
+if [ -x /usr/bin/realpath ]; then
+    APP_HOME=`/usr/bin/realpath "$0"`
+else
+    APP_HOME=`follow_links "$0"`
+fi
+APP_HOME=`dirname "$APP_HOME"`
+
+# The location of the gradle-wrapper.jar is determined by searching for it in a
+# number of locations. The first location that is found is used.
+#
+if [ -e "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" ]; then
+    WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+elif [ -e "$APP_HOME/gradle-wrapper.jar" ]; then
+    WRAPPER_JAR="$APP_HOME/gradle-wrapper.jar"
+else
+    WRAPPER_JAR_LOCATION=`find_upwards gradle/wrapper/gradle-wrapper.jar`
+    if [ -n "$WRAPPER_JAR_LOCATION" ]; then
+        WRAPPER_JAR="$WRAPPER_JAR_LOCATION/gradle/wrapper/gradle-wrapper.jar"
+    fi
+fi
+
+if [ -z "$WRAPPER_JAR" ] || [ ! -f "$WRAPPER_JAR" ]; then
+    die "
+Error: Could not find or load the $WRAPPER_NAME.
+Please check that the file exists and is readable.
+
+Searched in the following locations:
+
+* $APP_HOME/gradle/wrapper/gradle-wrapper.jar
+* $APP_HOME/gradle-wrapper.jar
+* A jar file found using the zero-length-path search pattern.
+"
+fi
+
+# End of locating the gradle-wrapper.jar
+#############################################################################
+#
+# Build the command line to execute
+
+# The project specific gradle opts are loaded from a .gradleopts file, if it
+# exists. The file is located by searching upwards from the current directory.
+#
+GRADLE_OPTS_FILE_LOCATION=`find_upwards .gradleopts`
+if [ -n "$GRADLE_OPTS_FILE_LOCATION" ]; then
+    # The sed command is used to remove any comments from the file.
+    # The grep command is used to remove any blank lines from the file.
+    #
+    # The tr command is used to replace any newlines with spaces.
+    # The xargs command is used to trim any leading or trailing whitespace.
+    #
+    PROJECT_GRADLE_OPTS=`cat "$GRADLE_OPTS_FILE_LOCATION/.gradleopts" | sed 's/#.*//' | grep -v '^$' | tr '\n' ' ' | xargs`
+fi
+
+# The gradle opts are built from a number of sources.
+#
+# The order of precedence is as follows:
+#
+# 1. The project specific gradle opts.
+# 2. The default gradle opts.
+# 3. The system properties.
+#
+GRADLE_OPTS="$PROJECT_GRADLE_OPTS $DEFAULT_GRADLE_OPTS $GPR_SYS_PROPS"
+
+# The classpath is built from the gradle-wrapper.jar.
+#
+CLASSPATH="$WRAPPER_JAR"
+
+# The command line is built from the java command, the gradle opts, the
+# classpath, the main class, and the command line arguments.
+#
+CMD_LINE_ARGS=
+for arg in "$@"
+do
+    CMD_LINE_ARGS="$CMD_LINE_ARGS \"$arg\""
+done
+
+# The eval command is used to execute the command line.
+#
+# This is required because the command line arguments may contain spaces, and
+# we need to preserve them.
+#
+eval "$JAVACMD" $GRADLE_OPTS -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
 

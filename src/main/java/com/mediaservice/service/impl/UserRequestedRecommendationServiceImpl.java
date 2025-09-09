@@ -1,6 +1,6 @@
 package com.mediaservice.service.impl;
 
-import com.mediaservice.dto.UserPerformanceSummary;
+import com.mediaservice.model.UserPerformanceSummary;
 import com.mediaservice.dto.CategoryPerformanceView;
 import com.mediaservice.dto.DifficultyAchievementView;
 import com.mediaservice.enums.RecommendationType;
@@ -8,8 +8,9 @@ import com.mediaservice.model.MediaRecommendation;
 import com.mediaservice.repository.MediaRecommendationRepository;
 import com.mediaservice.repository.CategoryPerformanceRepository;
 import com.mediaservice.repository.DifficultyAchievementRepository;
+import com.mediaservice.service.EventPublisherService;
 import com.mediaservice.service.GeminiApiService;
-import com.mediaservice.service.PromptTemplateService;
+import com.mediaservice.service.PerplexityApiService;
 import com.mediaservice.service.UserRequestedRecommendationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,11 +33,12 @@ import java.util.HashMap;
 @RequiredArgsConstructor
 public class UserRequestedRecommendationServiceImpl implements UserRequestedRecommendationService {
 
-    private final PromptTemplateService promptTemplateService;
     private final GeminiApiService geminiApiService;
+    private final PerplexityApiService perplexityApiService;
     private final MediaRecommendationRepository mediaRecommendationRepository;
     private final CategoryPerformanceRepository categoryPerformanceRepository;
     private final DifficultyAchievementRepository difficultyAchievementRepository;
+    private final EventPublisherService eventPublisherService;
 
     @Override
     @Transactional
@@ -54,7 +56,7 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
 
     @Override
     @Transactional
-    public int generateUserRequestedRecommendations(Long userId, List<String> selectedGenres) {
+    public List<MediaRecommendation> generateUserRequestedRecommendations(String userId, List<String> selectedGenres) {
         try {
             log.info("🔄 사용자 {} 사용자 요청 미디어 추천 생성 시작 - 선택된 장르: {}", userId, selectedGenres);
             
@@ -62,21 +64,22 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
             UserPerformanceSummary userPerformance = generateUserPerformanceSummary(userId);
             log.debug("📊 사용자 {} 성과 요약 생성 완료", userId);
             
-            // 2. 사용자 요청 기반 프롬프트 생성
-            String prompt = promptTemplateService.generateUserRequestedPrompt(userPerformance, selectedGenres);
-            log.debug("📝 사용자 {} 사용자 요청 기반 프롬프트 생성 완료", userId);
+            // 2. Gemini API로 사용자 성과 분석하여 검색 프롬프트 생성
+            String searchPrompt = geminiApiService.generateSearchPromptForUserRequested(userPerformance, selectedGenres);
+            log.info("🤖 Gemini API로 검색 프롬프트 생성 완료: {}", searchPrompt);
             
-            // 3. Gemini API 호출하여 추천 생성
-            List<MediaRecommendation> recommendations = geminiApiService.generateRecommendations(prompt);
-            log.info("🤖 사용자 {} Gemini API를 통한 사용자 요청 추천 생성 완료 - 추천 개수: {}", userId, recommendations.size());
+            // 3. Perplexity API로 다양한 미디어 콘텐츠 검색 및 추천 생성
+            List<MediaRecommendation> recommendations = perplexityApiService.searchMediaForUserRequested(searchPrompt);
+            log.info("🤖 사용자 {} Perplexity API를 통한 사용자 요청 추천 생성 완료 - 추천 개수: {}", userId, recommendations.size());
             
             // 4. 추천 결과에 사용자 요청 추천 정보 추가
             recommendations.forEach(recommendation -> {
+                recommendation.setRecommendationId(generateRecommendationId(userId, RecommendationType.USER_REQUESTED));
                 recommendation.setUserId(userId);
                 recommendation.setRecommendationType(RecommendationType.USER_REQUESTED);
                 recommendation.setSessionId(null); // 사용자 요청 추천은 특정 세션과 연결되지 않음
                 recommendation.setGeneratedAt(LocalDateTime.now());
-                recommendation.setPromptUsed(prompt);
+                recommendation.setPromptUsed(searchPrompt);
             });
             
             // 5. 데이터베이스에 저장
@@ -88,7 +91,22 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
                 log.debug("📺 사용자 요청 추천 생성됨 - 사용자: {}, ID: {}, 제목: {}, 미디어 타입: {}", 
                         userId, recommendation.getId(), recommendation.getTitle(), recommendation.getMediaType()));
             
-            return savedRecommendations.size();
+            // 7. 추천 생성 이벤트 발행
+            String recommendationId = savedRecommendations.isEmpty() ? null : savedRecommendations.get(0).getRecommendationId();
+            if (recommendationId != null) {
+                eventPublisherService.publishRecommendationCreatedEvent(
+                        userId, 
+                        recommendationId, 
+                        RecommendationType.USER_REQUESTED.name(), 
+                        savedRecommendations.size(), 
+                        selectedGenres, 
+                        null // 사용자 요청 추천은 세션 ID 없음
+                );
+                log.info("📢 사용자 {} 추천 생성 이벤트 발행 완료 - 추천 ID: {}, 미디어 개수: {}", 
+                        userId, recommendationId, savedRecommendations.size());
+            }
+            
+            return savedRecommendations;
             
         } catch (Exception e) {
             log.error("❌ 사용자 {} 사용자 요청 추천 생성 중 오류 발생 - Error: {}", userId, e.getMessage(), e);
@@ -99,7 +117,7 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
     /**
      * 사용자 성과 요약 정보를 생성합니다. (실제 DB 데이터 사용)
      */
-    private UserPerformanceSummary generateUserPerformanceSummary(Long userId) {
+    private UserPerformanceSummary generateUserPerformanceSummary(String userId) {
         log.debug("📊 사용자 {} 성과 요약 정보 생성 시작", userId);
         
         try {
@@ -125,6 +143,9 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
             log.debug("📊 사용자 {} 난이도별 성과 조회 완료 - 난이도 수: {}", userId, difficultyPerformance.size());
             
             return UserPerformanceSummary.builder()
+                    .userId(userId)
+                    .overallAccuracy(75.0) // Default value, should be calculated from actual data
+                    .totalStudyTime(120) // Default value, should be calculated from actual data
                     .categoryPerformance(categoryPerformance)
                     .difficultyPerformance(difficultyPerformance)
                     .build();
@@ -141,4 +162,14 @@ public class UserRequestedRecommendationServiceImpl implements UserRequestedReco
     }
     
     // 장르 선호 조회는 사용자 요청 추천에서는 외부 입력(selectedGenres)로 대체
+    
+    /**
+     * 추천 ID를 생성합니다.
+     */
+    private String generateRecommendationId(String userId, RecommendationType type) {
+        return String.format("REC_%s_%s_%s", 
+            userId, 
+            type.name(), 
+            java.util.UUID.randomUUID().toString().substring(0, 8));
+    }
 }

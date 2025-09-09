@@ -2,7 +2,11 @@ package com.mediaservice.controller;
 
 import com.mediaservice.dto.UserRecommendationRequest;
 import com.mediaservice.dto.UserRecommendationResponse;
+import com.mediaservice.enums.RecommendationType;
+import com.mediaservice.model.MediaRecommendation;
+import com.mediaservice.repository.MediaRecommendationRepository;
 import com.mediaservice.service.UserRequestedRecommendationService;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +28,7 @@ import jakarta.validation.Valid;
 public class UserRecommendationController {
     
     private final UserRequestedRecommendationService userRequestedRecommendationService;
+    private final MediaRecommendationRepository mediaRecommendationRepository;
     
     /**
      * 사용자 요청 기반 미디어 추천 생성
@@ -42,16 +47,16 @@ public class UserRecommendationController {
                     request.getUserId(), request.getSelectedGenres());
             
             // 사용자 요청 기반 추천 생성
-            int totalRecommendations = userRequestedRecommendationService
+            List<MediaRecommendation> recommendations = userRequestedRecommendationService
                     .generateUserRequestedRecommendations(request.getUserId(), request.getSelectedGenres());
             
-            log.info("✅ 사용자 요청 기반 추천 생성 완료 - 총 추천 개수: {}", totalRecommendations);
+            log.info("✅ 사용자 요청 기반 추천 생성 완료 - 총 추천 개수: {}", recommendations.size());
             
             // 성공 응답 반환
             UserRecommendationResponse response = UserRecommendationResponse.success(
-                    totalRecommendations,
+                    recommendations.size(),
                     request.getSelectedGenres(),
-                    null // 추천 결과는 별도 조회 API에서 가져옴
+                    recommendations
             );
             
             return ResponseEntity.ok(response);
@@ -79,25 +84,74 @@ public class UserRecommendationController {
      */
     @GetMapping("/user-requested/{userId}")
     public ResponseEntity<UserRecommendationResponse> getUserRequestedRecommendationHistory(
-            @PathVariable Long userId) {
+            @PathVariable String userId) {
         
         try {
             log.info("📚 사용자 {} 사용자 요청 기반 추천 히스토리 조회", userId);
             
-            // TODO: 추천 히스토리 조회 로직 구현
-            // 현재는 Mock 응답 반환
+            // 사용자 요청 기반 추천 히스토리 조회
+            List<MediaRecommendation> recommendations = mediaRecommendationRepository
+                    .findByUserIdAndRecommendationTypeOrderByGeneratedAtDesc(userId, RecommendationType.USER_REQUESTED);
+            
+            log.info("✅ 사용자 {} 추천 히스토리 조회 완료 - 총 추천 개수: {}", userId, recommendations.size());
             
             UserRecommendationResponse response = UserRecommendationResponse.builder()
                     .status("SUCCESS")
                     .message("사용자 요청 기반 추천 히스토리 조회 완료")
-                    .totalRecommendations(0)
+                    .totalRecommendations(recommendations.size())
+                    .selectedGenres(null) // 히스토리에서는 선택된 장르 정보가 없음
                     .generatedAt(java.time.LocalDateTime.now())
+                    .recommendations(recommendations)
                     .build();
             
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
             log.error("❌ 사용자 요청 기반 추천 히스토리 조회 중 오류 발생 - UserId: {}, Error: {}", 
+                    userId, e.getMessage(), e);
+            
+            UserRecommendationResponse errorResponse = UserRecommendationResponse.error(
+                    "추천 히스토리 조회 중 오류가 발생했습니다: " + e.getMessage()
+            );
+            
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+    /**
+     * 사용자 전체 추천 히스토리 조회
+     * 
+     * GET /api/recommendations/history/{userId}
+     * 
+     * @param userId 사용자 ID
+     * @return 해당 사용자의 모든 추천 히스토리 (실시간 + 사용자 요청)
+     */
+    @GetMapping("/history/{userId}")
+    public ResponseEntity<UserRecommendationResponse> getAllRecommendationHistory(
+            @PathVariable String userId) {
+        
+        try {
+            log.info("📚 사용자 {} 전체 추천 히스토리 조회", userId);
+            
+            // 모든 추천 히스토리 조회 (실시간 + 사용자 요청)
+            List<MediaRecommendation> recommendations = mediaRecommendationRepository
+                    .findByUserIdOrderByGeneratedAtDesc(userId);
+            
+            log.info("✅ 사용자 {} 전체 추천 히스토리 조회 완료 - 총 추천 개수: {}", userId, recommendations.size());
+            
+            UserRecommendationResponse response = UserRecommendationResponse.builder()
+                    .status("SUCCESS")
+                    .message("전체 추천 히스토리 조회 완료")
+                    .totalRecommendations(recommendations.size())
+                    .selectedGenres(null) // 히스토리에서는 선택된 장르 정보가 없음
+                    .generatedAt(java.time.LocalDateTime.now())
+                    .recommendations(recommendations)
+                    .build();
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            log.error("❌ 전체 추천 히스토리 조회 중 오류 발생 - UserId: {}, Error: {}", 
                     userId, e.getMessage(), e);
             
             UserRecommendationResponse errorResponse = UserRecommendationResponse.error(

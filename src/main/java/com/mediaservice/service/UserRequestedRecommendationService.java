@@ -1,5 +1,6 @@
 package com.mediaservice.service;
 
+import com.mediaservice.model.MediaRecommendation;
 import java.util.List;
 
 /**
@@ -15,9 +16,9 @@ public interface UserRequestedRecommendationService {
      *
      * @param userId 사용자 ID
      * @param selectedGenres 사용자가 선택한 장르 목록
-     * @return 생성된 추천 개수
+     * @return 생성된 추천 데이터 목록
      */
-    int generateUserRequestedRecommendations(Long userId, List<String> selectedGenres);
+    List<MediaRecommendation> generateUserRequestedRecommendations(String userId, List<String> selectedGenres);
 
     /**
      * 사용자 요청에 따른 즉시 추천을 생성합니다.

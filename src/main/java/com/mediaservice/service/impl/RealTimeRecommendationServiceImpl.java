@@ -7,7 +7,7 @@ import com.mediaservice.repository.MediaRecommendationRepository;
 import com.mediaservice.repository.SessionQuestionRepository;
 import com.mediaservice.service.RealTimeRecommendationService;
 import com.mediaservice.service.GeminiApiService;
-import com.mediaservice.service.PromptTemplateService;
+import com.mediaservice.service.PerplexityApiService;
 import com.mediaservice.enums.RecommendationType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,8 +30,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RealTimeRecommendationServiceImpl implements RealTimeRecommendationService {
 
-    private final PromptTemplateService promptTemplateService;
     private final GeminiApiService geminiApiService;
+    private final PerplexityApiService perplexityApiService;
     private final MediaRecommendationRepository mediaRecommendationRepository;
     private final SessionQuestionRepository sessionQuestionRepository;
 
@@ -49,21 +49,22 @@ public class RealTimeRecommendationServiceImpl implements RealTimeRecommendation
             // 이벤트에 세션 문제 정보 설정
             event.setSessionQuestions(sessionQuestions);
             
-            // 실시간 세션 기반 프롬프트 생성 (대분류/소분류 중심)
-            String prompt = promptTemplateService.generateRealTimeSessionPrompt(event);
-            log.debug("📝 실시간 세션 기반 프롬프트 생성 완료");
+            // 1. Gemini API로 학습 세션 분석하여 검색 프롬프트 생성
+            String searchPrompt = geminiApiService.generateSearchPromptForRealTime(event);
+            log.info("🤖 Gemini API로 검색 프롬프트 생성 완료: {}", searchPrompt);
             
-            // Gemini API 호출하여 추천 생성
-            List<MediaRecommendation> recommendations = geminiApiService.generateRecommendations(prompt);
-            log.info("🤖 Gemini API를 통한 실시간 추천 생성 완료 - 추천 개수: {}", recommendations.size());
+            // 2. Perplexity API로 실제 YouTube 영상 검색 및 추천 생성 (3분 이하)
+            List<MediaRecommendation> recommendations = perplexityApiService.searchYouTubeVideosForRealTime(searchPrompt);
+            log.info("🔍 Perplexity API를 통한 실시간 추천 생성 완료 - 추천 개수: {}", recommendations.size());
             
             // 추천 결과에 실시간 추천 정보 추가
             recommendations.forEach(recommendation -> {
-                recommendation.setUserId(Long.valueOf(event.getUserId()));
+                recommendation.setRecommendationId(generateRecommendationId(event.getUserId(), RecommendationType.REAL_TIME_SESSION));
+                recommendation.setUserId(event.getUserId());
                 recommendation.setRecommendationType(RecommendationType.REAL_TIME_SESSION);
                 recommendation.setSessionId(event.getSessionId());
                 recommendation.setGeneratedAt(LocalDateTime.now());
-                recommendation.setPromptUsed(prompt);
+                recommendation.setPromptUsed(searchPrompt);
             });
             
             // 데이터베이스에 저장
@@ -166,5 +167,15 @@ public class RealTimeRecommendationServiceImpl implements RealTimeRecommendation
             log.info("     링크: {}", rec.getUrl());
             log.info("");
         }
+    }
+    
+    /**
+     * 추천 ID를 생성합니다.
+     */
+    private String generateRecommendationId(String userId, RecommendationType type) {
+        return String.format("REC_%s_%s_%s", 
+            userId, 
+            type.name(), 
+            java.util.UUID.randomUUID().toString().substring(0, 8));
     }
 }

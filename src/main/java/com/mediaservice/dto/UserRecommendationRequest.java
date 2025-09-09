@@ -26,7 +26,7 @@ public class UserRecommendationRequest {
      * 사용자 ID
      */
     @NotNull(message = "사용자 ID는 필수입니다.")
-    private Long userId;
+    private String userId;
     
     /**
      * 사용자가 선택한 장르 목록
